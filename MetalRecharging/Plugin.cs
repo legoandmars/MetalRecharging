@@ -1,4 +1,6 @@
 ﻿using BepInEx;
+using HarmonyLib;
+using System.Reflection;
 
 namespace MetalRecharging
 {
@@ -9,6 +11,7 @@ namespace MetalRecharging
         {
             // Plugin startup logic
             Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+            Harmony.CreateAndPatchAll(Assembly.GetExecutingAssembly());
         }
     }
 }
