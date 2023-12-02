@@ -33,7 +33,12 @@ namespace MetalRecharging.Patches
                         // ___triggerScript.hoverTip = "Charge item : [LMB]";
                     }
                     // TODO: Check if ship not landed? can use ship pull thing for that
-
+                    var landmines = UnityEngine.Object.FindObjectsOfType<Landmine>();
+                    // Debug.Log(landmines.Length);
+                    var landmine = StartOfRound.Instance?.levels?.SelectMany(x => x.spawnableMapObjects).FirstOrDefault(x => x.prefabToSpawn.name == "Landmine")?.prefabToSpawn;
+                    // Debug.Log("RM");
+                    // Debug.Log(landmine);
+                    //var landminePrefab = UnityEngine.Object.FindObjectsOfTypeAll(Landmine);
                     ___triggerScript.twoHandedItemAllowed = true; // uuuuuuh this might break things idk. maybe do this in START or something
                     return false;
                 }
@@ -56,12 +61,14 @@ namespace MetalRecharging.Patches
         private async static Task Kaboom(ItemCharger __instance, int delay)
         {
             var player = GameNetworkManager.Instance.localPlayerController;
-
             await Task.Delay(delay);
+            ChatPatch.SendExplosionChat();
+
             __instance.triggerScript.CancelAnimationExternally();
             Terminal terminal = UnityEngine.Object.FindObjectOfType<Terminal>();
             var jetpack = terminal.buyableItemsList.FirstOrDefault(x => x.itemName == "Jetpack");
 
+            return;
             var playerPos = player.transform.position + new Vector3(0, 1f, 0);
             Debug.Log(playerPos);
             GameObject gameObject = UnityEngine.Object.Instantiate<GameObject>(jetpack.spawnPrefab, playerPos, Quaternion.identity, null);
