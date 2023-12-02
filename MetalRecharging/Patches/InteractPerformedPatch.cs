@@ -36,12 +36,5 @@ namespace MetalRecharging.Patches
             _swappingTwoHandedValue = false;
             __instance.twoHanded = true;
         }
-
-        [HarmonyPatch("InteractTriggerUseConditionsMet")]
-        [HarmonyPrefix]
-        internal static void ConditionsMet()
-        {
-            Debug.Log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..");
-        }
     }
 }

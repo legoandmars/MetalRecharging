@@ -1,7 +1,9 @@
 ﻿using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace MetalRecharging.Patches
@@ -11,39 +13,48 @@ namespace MetalRecharging.Patches
     [HarmonyPatch(typeof(Landmine))]
     internal class LandminePatch
     {
-        [HarmonyPatch(nameof(Landmine.Detonate))]
-        [HarmonyPrefix]
-        static bool Detonate(Landmine __instance)
-        {
-            Debug.Log("DETONATION!");
-            if (__instance.mineAudio != null) return true;
-            var audioSource = __instance.GetComponentInChildren<AudioSource>();
+        public static bool LastExplosionWasLocalPlayer = false;
+        public static bool LastExplosionWasCharger = false;
 
-            audioSource.pitch = UnityEngine.Random.Range(0.93f, 1.07f);
-            audioSource.PlayOneShot(__instance.mineDetonate, 1f);
-            Landmine.SpawnExplosion(__instance.transform.position + Vector3.up, false, 5.7f, 6.4f);
-            return false;
-        }
-
-        [HarmonyPatch("Start")]
+        [HarmonyPatch(nameof(Landmine.SpawnExplosion))]
         [HarmonyPrefix]
-        static bool LandmineStart(Landmine __instance)
+        static bool SpawnExplosion(Vector3 explosionPosition, bool spawnExplosionEffect = false, float killRange = 1f, float damageRange = 1f)
         {
-            return __instance.mineAudio != null;
-        }
+            Debug.Log("Spawning explosion");
+            Debug.Log("Charger:");
+            Debug.Log(LastExplosionWasCharger);
+            Debug.Log(LastExplosionWasLocalPlayer);
 
-        [HarmonyPatch("SetOffMineAnimation")]
-        [HarmonyPrefix]
-        static bool SetOffMineAnimation(Landmine __instance)
-        {
-            Debug.Log("MINE!");
-            if (__instance.mineAudio == null)
+            if (!LastExplosionWasCharger) return true;
+            var player = GameNetworkManager.Instance.localPlayerController;
+            Vector3 bodyVelocity = (player.gameplayCamera.transform.position - explosionPosition) * 80f / Vector3.Distance(player.gameplayCamera.transform.position, explosionPosition);
+            if (LastExplosionWasLocalPlayer)
             {
-                __instance.mineAnimator.SetTrigger("startIdle");
-                __instance.mineAudio = __instance.GetComponentInChildren<AudioSource>();
-                __instance.mineTrigger = null;
+                player.KillPlayer(bodyVelocity, true, CauseOfDeath.Blast, 0);
             }
-            return true;
+
+            LastExplosionWasCharger = false;
+            LastExplosionWasLocalPlayer = false;
+            int layerMask = ~LayerMask.GetMask(new string[]
+            {
+                "Room"
+            });
+            layerMask = ~LayerMask.GetMask(new string[]
+            {
+                "Colliders"
+            });
+            var colliders = Physics.OverlapSphere(explosionPosition, 10f, layerMask);
+            for (int j = 0; j < colliders.Length; j++)
+            {
+                Rigidbody component2 = colliders[j].GetComponent<Rigidbody>();
+                if (component2 != null)
+                {
+                    component2.AddExplosionForce(70f, explosionPosition, 10f);
+                }
+            }
+
+            // TODO: Hit enemies to avoid desync?
+            return false;
         }
     }
 }

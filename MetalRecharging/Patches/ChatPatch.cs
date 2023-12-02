@@ -15,16 +15,13 @@ namespace MetalRecharging.Patches
         private static bool _justExploded = false;
         private static SpawnableMapObject? _landmine = null;
         [HarmonyPatch("AddPlayerChatMessageServerRpc")]
+        [HarmonyPatch("AddChatMessage")]
         [HarmonyPostfix]
         private static void OnServerMessageAdded(HUDManager __instance, ref string chatMessage)
         {
-            Debug.Log("IDK");
-            Debug.Log(chatMessage.Contains("iexplode"));
-            Debug.Log(chatMessage.Split('-').Length);
-            if (__instance.NetworkManager == null) return;
-            if (!__instance.NetworkManager.IsHost && !__instance.NetworkManager.IsServer) return; //might need to be both host and server idk
-            if (!chatMessage.Contains("iexplode")) return;
             if (_justExploded) return;
+            if (__instance.NetworkManager == null) return;
+            if (!chatMessage.Contains("iexplode")) return;
 
             var splitMessage = chatMessage.Split('-');
             if (splitMessage.Length != 3) return;
@@ -34,36 +31,30 @@ namespace MetalRecharging.Patches
             if (_landmine == null) _landmine = __instance.playersManager?.levels?.SelectMany(x => x.spawnableMapObjects).FirstOrDefault(x => x.prefabToSpawn.name == "Landmine");
             if (player == null || _landmine == null) return;
 
+            if (!__instance.NetworkManager.IsHost && !__instance.NetworkManager.IsServer)
+            {
+                // we are NOT the server but go ahead and set the non-kill patch for the next explosion.
+                LandminePatch.LastExplosionWasCharger = true;
+                return;
+            }
+
+            LandminePatch.LastExplosionWasCharger = true;
+
             // we're the server and everything is valid. fucking EXPLODE!!!!!!!!!!!!
             Debug.Log("Explisuion time.");
             _justExploded = true;
 
-            var playerPos = player.transform.position + new Vector3(0, 1f, 0);
+            var playerPos = player.transform.position - new Vector3(0, 0.25f, 0);
             GameObject landmineObject = UnityEngine.Object.Instantiate(_landmine.prefabToSpawn, playerPos, Quaternion.identity, RoundManager.Instance.mapPropsContainer.transform);
-
-            // disable the landmine changing player position
-            foreach (var collider in landmineObject.GetComponentsInChildren<Collider>())
-            {
-                collider.enabled = false;
-            }
-
             var landmine = landmineObject.GetComponentInChildren<Landmine>();
-            UnityEngine.Object.Destroy(landmine.GetComponent<MeshRenderer>()); // destroy renderer, can't just be disabled because it's used in animations
-            landmine.mineAudio = null; // force audio thihng to null to break kill behaviour for unmodded clients
             landmineObject.GetComponent<NetworkObject>().Spawn(true);
-            //landmine.TriggerMineOnLocalClientByExiting();
-            Debug.Log("explode2");
-            Debug.Log(landmine);
             landmine.ExplodeMineServerRpc();
-            //AccessTools.Method(typeof(Landmine), "TriggerMineOnLocalClientByExiting").Invoke(landmine, new object[] { });
             _ = Unexplode();
         }
 
         private static async Task Unexplode()
         {
             await Task.Delay(200);
-
-            Debug.Log("UNexplode");
             _justExploded = false;
         }
 
@@ -71,7 +62,7 @@ namespace MetalRecharging.Patches
         {
             if (GameNetworkManager.Instance == null || GameNetworkManager.Instance.localPlayerController == null) return;
             var playerId = (int)GameNetworkManager.Instance.localPlayerController.playerClientId;
-            HUDManager.Instance.AddTextToChatOnServer("-"+playerId+"-iexplode", playerId);
+            HUDManager.Instance.AddTextToChatOnServer("<size=0>-"+playerId+"-iexplode</size>", playerId);
         }
     }
 }
